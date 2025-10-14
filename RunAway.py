@@ -25,16 +25,14 @@ class MyRobot(Robot): #Create a Robot
     def run(self): #main loop to command the bot
         
         self.move(50) # for moving (negative values go back)
-        #self.stop()
+        self.stop()
         self.gunTurn(45)    #銃を45度回転
-        # self.stop() #停止
-
+        self.radarTurn(90)  #レーダーを90度回転
 
     def onHitWall(self):
         self.reset()     # プログラムをリセット
         self.pause(50)  # 50ミリ秒待機
         self.move(-100)  # 後ろに100ピクセル移動
-        self.rPrint('ouch! a wall !') # メッセージ表示
 
     def sensors(self): #NECESARY FOR THE GAME
         pass
@@ -51,7 +49,7 @@ class MyRobot(Robot): #Create a Robot
         
         # 打ちつつ、逃げる
         self.setRadarField("round") #レーダーを円形に設定
-        self.fire(1) #威力1で発砲
+        # self.fire(1) #威力1で発砲
         self.move(-50) # for moving (negative values go back) 
         
     def onBulletHit(self, botId, bulletId):#NECESARY FOR THE GAME
@@ -60,7 +58,7 @@ class MyRobot(Robot): #Create a Robot
         
         # もっと攻める
         self.stop()
-        self.fire(1) #威力1で発砲
+        # self.fire(1) #威力1で発砲
 
         
     def onBulletMiss(self, bulletId):#NECESARY FOR THE GAME
@@ -80,6 +78,6 @@ class MyRobot(Robot): #Create a Robot
         # self.rPrint("I see the bot:" + str(botId) + "on position: x:" + str(botPos.x()) + " , y:" + str(botPos.y()))
         self.gunTurn(30) #銃を30度回転
         self.stop()
-        self.fire(1) #威力1で発砲
+        # self.fire(1) #威力1で発砲
 
         self.setRadarField("normal") #レーダーを通常モードに戻す
