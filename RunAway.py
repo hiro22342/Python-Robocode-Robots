@@ -3,10 +3,9 @@
 
 from robot import Robot #Import a base Robot
 
-class MyRobot(Robot): #Create a Robot
+class RunAway(Robot): #Create a Robot
     
     def init(self):    #To initialyse your robot
-        
         
         #RGBでロボットの色を設定
         self.setColor(0, 150, 255)        # 本体：サイバーブルー
@@ -30,9 +29,11 @@ class MyRobot(Robot): #Create a Robot
         self.radarTurn(90)  #レーダーを90度回転
 
     def onHitWall(self):
+        self.stop()      # 停止
         self.reset()     # プログラムをリセット
-        self.pause(50)  # 50ミリ秒待機
-        self.move(-100)  # 後ろに100ピクセル移動
+        self.turn(75)  # 75度回転
+        self.move(75)  # 75ピクセル移動
+
 
     def sensors(self): #NECESARY FOR THE GAME
         pass
