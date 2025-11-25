@@ -1,97 +1,138 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
 
-from robot import Robot  # Import a base Robot
+from robot import Robot
+import math
 
 
-class Demo(Robot):  # Create a Robot
+class yuki(Robot):
 
-    def init(self):  # NECESARY FOR THE GAME   To initialyse your robot
+    def init(self):
+        # 特攻機らしい「黒・赤」のカラーリング
+        self.setColor(0, 0, 0)  # 本体は黒
+        self.setGunColor(255, 0, 0)  # 銃は赤
+        self.setRadarColor(255, 0, 0)  # レーダーも赤
+        self.setBulletsColor(255, 50, 50)
 
-        # Set the bot color in RGB
-        self.setColor(0, 200, 100)
-        self.setGunColor(200, 200, 0)
-        self.setRadarColor(255, 60, 0)
-        self.setBulletsColor(0, 200, 100)
+        # 敵を逃さないよう、通常のレーダーを使用
+        self.setRadarField("round")
+        self.radarVisible(True)
 
-        # get the map size
-        size = self.getMapSize()  # get the map size
-        self.radarVisible(True)  # show the radarField
+        # 常に敵の方向を向くため、レーダーと銃をロック
+        self.lockRadar("gun")
 
-    def run(self):  # NECESARY FOR THE GAME  main loop to command the bot
+        self.target_locked = False
 
-        self.move(90)  # for moving (negative values go back)
-        self.turn(360)  # for turning (negative values turn counter-clockwise)
+    def run(self):
+        # 敵が見つからないときは、高速回転して探す
+        self.target_locked = False
         self.stop()
-        """
-        the stop command is used to make moving sequences: here the robot will move 90steps and turn 360° at the same time
-        and next, fire
-        """
-
-        self.fire(3)  # To Fire (power between 1 and 10)
-
-        self.move(100)
         self.turn(50)
-        self.stop()
-        bulletId = self.fire(2)  # to let you you manage if the bullet hit or fail
-        self.move(180)
-        self.turn(180)
-        self.gunTurn(90)  # to turn the gun (negative values turn counter-clockwise)
-        self.stop()
-        self.fire(1)  # To Fire (power between 1 and 10)
-        self.radarTurn(180)  # to turn the radar (negative values turn counter-clockwise)
+        self.gunTurn(50)
         self.stop()
 
-    def sensors(self):  # NECESARY FOR THE GAME
-        """Tick each frame to have datas about the game"""
+    def sensors(self):
+        pass
 
-        pos = self.getPosition()  # return the center of the bot
-        x = pos.x()  # get the x coordinate
-        y = pos.y()  # get the y coordinate
+    def onTargetSpotted(self, botId, botName, botPos):
+        """
+        敵を見つけたら、止まらずに突っ込み、至近距離で最大火力を叩き込む
+        """
+        self.target_locked = True
 
-        angle = self.getGunHeading()  # Returns the direction that the robot's gun is facing
-        angle = self.getHeading()  # Returns the direction that the robot is facing
-        angle = self.getRadarHeading()  # Returns the direction that the robot's radar is facing
-        list = self.getEnemiesLeft()  # return a list of the enemies alive in the battle
-        for robot in list:
-            id = robot["id"]
-            name = robot["name"]
-            # each element of the list is a dictionnary with the bot's id and the bot's name
+        my_pos = self.getPosition()
+        dist = self.get_distance(my_pos, botPos)
 
-    def onHitByRobot(self, robotId, robotName):
-        self.rPrint("damn a bot collided me!")
+        # 1. 敵の方向を計算
+        angle_to_enemy = self.get_angle(my_pos, botPos)
+
+        # 2. 全身（本体・銃・レーダー）を敵に向ける
+        # 本体を向ける
+        turn_angle = angle_to_enemy - self.getHeading()
+        self.turn(self.normalize_angle(turn_angle))
+
+        # 銃を向ける（ロックしているのでレーダーも向く）
+        gun_turn_angle = angle_to_enemy - self.getGunHeading()
+        self.gunTurn(self.normalize_angle(gun_turn_angle))
+
+        # 3. 特攻移動ロジック
+        self.stop()  # 前の動作をキャンセル
+
+        # 敵の位置まで移動（+50して確実にぶつかるようにする）
+        self.move(dist + 50)
+
+        # 4. 道連れ射撃ロジック（ここが重要）
+        if dist < 40:
+            # ほぼ接触しているなら、最大火力(10)で発射
+            # 自分のHPを10削るが、当たれば20回復し、相手に30与える
+            self.fire(10)
+            self.rPrint("DIE!!!")
+        elif dist < 100:
+            # 近距離なら高火力
+            self.fire(5)
+        elif dist < 300:
+            # 中距離なら牽制（近づくためのHPを温存したいので弱め）
+            self.fire(1)
+
+        # 遠距離では撃たない（HP温存して突撃するため）
+
+        self.stop()
+
+    def onRobotHit(self, robotId, robotName):
+        """ロボットにぶつかった時の処理"""
+        # 通常は下がるが、このロボットは下がらない。
+        # むしろ、さらに押し込んでゼロ距離射撃を狙う。
+        self.rPrint("Gotcha!")
+        self.fire(10)  # 衝突時は確実に当たるので最大火力
+
+        # 少しだけ下がって勢いをつけてまた突っ込む（めり込み防止対策）
+        self.stop()
+        self.move(-20)
+        self.stop()
 
     def onHitWall(self):
-        self.reset()  # To reset the run fonction to the begining (auomatically called on hitWall, and robotHit event)
-        self.pause(100)
-        self.move(-100)
-        self.rPrint('ouch! a wall !')
-        self.setRadarField("large")  # Change the radar field form
+        """壁にぶつかったら、少し下がって向き直る"""
+        self.stop()
+        self.move(-50)
+        self.turn(100)  # 大きく回って壁から脱出
+        self.stop()
 
-    def onRobotHit(self, robotId, robotName):  # when My bot hit another
-        self.rPrint('collision with:' + str(
-            robotName))  # Print information in the robotMenu (click on the righ panel to see it)
+    def onHitByBullet(self, bulletBotId, bulletBotName, bulletPower):
+        """撃たれてもひるまず、射手の方へ向き直って突撃する"""
+        self.rPrint("Target Updated: " + str(bulletBotName))
+        # 撃たれた＝敵はその方向にいる。sensorsやonTargetSpottedに任せるが
+        # ここで特別な回避はせず、むしろチャンスと捉えて突っ込む精神
+        pass
 
-    def onHitByBullet(self, bulletBotId, bulletBotName, bulletPower):  # NECESARY FOR THE GAME
-        """ When i'm hit by a bullet"""
-        self.reset()  # To reset the run fonction to the begining (auomatically called on hitWall, and robotHit event)
-        self.rPrint("hit by " + str(bulletBotName) + "with power:" + str(bulletPower))
+    # --- 必須メソッド ---
+    def onRobotDeath(self):
+        self.rPrint("I'll be back...")
 
-    def onBulletHit(self, botId, bulletId):  # NECESARY FOR THE GAME
-        """when my bullet hit a bot"""
-        self.rPrint("fire done on " + str(botId))
+    def onBulletHit(self, botId, bulletId):
+        self.rPrint("Hit!")
 
-    def onBulletMiss(self, bulletId):  # NECESARY FOR THE GAME
-        """when my bullet hit a wall"""
-        self.rPrint("the bullet " + str(bulletId) + " fail")
-        self.pause(10)  # wait 10 frames
+    def onBulletMiss(self, bulletId):
+        pass
 
-    def onRobotDeath(self):  # NECESARY FOR THE GAME
-        """When my bot die"""
-        self.rPrint("damn I'm Dead")
+    # --- 計算用関数 ---
+    def get_distance(self, p1, p2):
+        dx = p1.x() - p2.x()
+        dy = p1.y() - p2.y()
+        return math.sqrt(dx * dx + dy * dy)
 
-    def onTargetSpotted(self, botId, botName, botPos):  # NECESARY FOR THE GAME
-        "when the bot see another one"
-        self.fire(5)
-        self.rPrint("I see the bot:" + str(botId) + "on position: x:" + str(botPos.x()) + " , y:" + str(botPos.y()))
+    def get_angle(self, p1, p2):
+        dx = p2.x() - p1.x()
+        dy = p2.y() - p1.y()
+        rad = math.atan2(-dx, dy)
+        return math.degrees(rad)
 
+    def normalize_angle(self, angle):
+        while angle <= -180: angle += 360
+        while angle > 180: angle -= 360
+        return angle
+
+    def onHitByRobot(self, robotId, robotName):
+        """相手の方からぶつかってきた時の処理（必須）"""
+        self.rPrint("You dare hit me?!")
+        # ぶつかられた＝相手は目の前にいるので、遠慮なく最大火力で撃つ
+        self.fire(10)
